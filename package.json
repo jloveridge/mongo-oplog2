@@ -1,0 +1,47 @@
+{
+  "name": "mongo-oplog2",
+  "version": "1.0.0",
+  "description": "Simple monitoring of MongoDB oplog.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "clean": "rm -rf lib node_modules",
+    "build": "npm run clean && npm install && tsc -p .",
+    "lint": "tslint --project tsconfig.json --type-check",
+    "test": "mocha",
+    "test-ci": "NODE_ENV=test mocha --reporter xunit --reporter-options output=testresults.xml"
+  },
+  "keywords": [
+    "data",
+    "mongo",
+    "mongodb",
+    "watcher",
+    "live",
+    "oplog",
+    "cursor"
+  ],
+  "author": "jloveridge",
+  "license": "MIT",
+  "dependencies": {
+    "eventemitter3": "~2.0.3",
+    "mongodb": "~2.2.31",
+    "tslib": "~1.7.1"
+  },
+  "devDependencies": {
+    "@types/chai": "~4.0.4",
+    "@types/mocha": "~2.2.43",
+    "@types/mongodb": "~2.2.11",
+    "chai": "~4.1.2",
+    "mocha": "~3.5.3",
+    "ts-node": "~3.3.0",
+    "tslint": "~5.7.0",
+    "typescript": "~2.5.3"
+  },
+  "files": [
+    "lib"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jloveridge/mongo-oplog2"
+  }
+}

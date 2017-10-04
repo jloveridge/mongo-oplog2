@@ -1,0 +1,10 @@
+._*
+*.DS_Store
+*.swp
+*.swo
+.tscache
+lib/
+node_modules/
+npm-*
+testresults.xml
+.vscode

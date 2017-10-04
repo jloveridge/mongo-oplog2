@@ -1,0 +1,4 @@
+--check-leaks
+--compilers ts:ts-node/register
+--recursive test
+--watch-extensions ts
