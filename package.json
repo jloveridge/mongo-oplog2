@@ -8,6 +8,7 @@
     "clean": "rm -rf lib node_modules",
     "build": "npm run clean && npm install && tsc -p .",
     "lint": "tslint --project tsconfig.json --type-check",
+    "preversion": "npm run build",
     "test": "mocha",
     "test-ci": "NODE_ENV=test mocha --reporter xunit --reporter-options output=testresults.xml"
   },
