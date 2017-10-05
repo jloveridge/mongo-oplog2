@@ -6,6 +6,7 @@ import { getStream } from "./stream";
 import { getOpName, getTimestamp, omit, OplogDoc, prettify } from './util';
 import * as util from './util';
 export { OplogDoc, PrettyOplogDoc, prettify } from "./util";
+export { FilteredMongoOplog } from "./filter";
 
 const debug = debuglog("mongo-oplog2");
 const reErr = /cursor (killed or )?timed out/;
