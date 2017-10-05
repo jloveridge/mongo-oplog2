@@ -6,7 +6,7 @@
   "types": "lib/index.d.ts",
   "scripts": {
     "clean": "rm -rf lib node_modules",
-    "build": "npm run clean && npm install && tsc -p .",
+    "build": "npm run clean && npm install && npm test && tsc -p .",
     "lint": "tslint --project tsconfig.json --type-check",
     "preversion": "npm run build",
     "test": "mocha",
