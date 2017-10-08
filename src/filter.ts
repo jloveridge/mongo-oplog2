@@ -1,7 +1,7 @@
 import { debuglog } from "util";
 import { EventEmitter, ListenerFn } from "eventemitter3";
 import { MongoOplog, OplogEvents } from "./";
-import { getOpName, OplogDoc, prettify, regex } from './util';
+import { getOpName, OplogDoc, prettify, PrettyOplogDoc, regex } from './util';
 
 const debug = debuglog("mongo-oplog2:filter");
 
@@ -26,13 +26,13 @@ export class FilteredMongoOplog extends EventEmitter implements FilteredMongoOpl
         debug("initializing filter with re %s", ns);
         const re = regex(ns);
         this.oplog = oplog;
-        this.onOp = (doc: OplogDoc) => {
-            if (this.ignore || !re.test(doc.ns)) { return; }
+        this.onOp = (doc: any) => {
+            const docNs = doc.namespace || doc.ns;
+            if (this.ignore || !re.test(docNs)) { return; }
             debug("incoming data %j", doc);
-            const opName = getOpName(doc.op);
-            const outDoc = oplog.pretty ? prettify(doc) : doc;
-            this.emit("op", outDoc);
-            this.emit(opName, outDoc);
+            const opName = doc.operation || getOpName(doc.op);
+            this.emit("op", doc);
+            this.emit(opName, doc);
         };
         oplog.on("op", this.onOp);
     }

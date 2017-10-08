@@ -68,11 +68,12 @@ export function omit(obj: any, keys: string[]): any {
  */
 export function prettify(oplogDoc: OplogDoc): PrettyOplogDoc {
     const aEvents: any = opMap;
-    const doc: PrettyOplogDoc = {
-        timestamp: new Date((<any>oplogDoc.ts).high_ * 1000),
-        operation: getOpName(oplogDoc.op),
+    const doc: PrettyOplogDoc = <any>{
         namespace: oplogDoc.ns,
+        operation: getOpName(oplogDoc.op),
         operationId: oplogDoc.h,
+        timestamp: new Date((<any>oplogDoc.ts).high_ * 1000),
+        ts: oplogDoc.ts,
     };
     const targetId = (oplogDoc.o2 && oplogDoc.o2._id?oplogDoc.o2._id:(oplogDoc.o && oplogDoc.o._id?oplogDoc.o._id:null));
     if (targetId) { doc.targetId = targetId; }
@@ -109,8 +110,8 @@ export interface OplogDoc {
     op: string;
     ns: string;
     h: any;
-    o?: any;
-    o2?: any;
+    o: any;
+    o2: any;
 }
 
 /**
@@ -119,11 +120,12 @@ export interface OplogDoc {
  * the `on.(op, fn)` events.
  */
 export interface PrettyOplogDoc {
-    timestamp: Date;
+    criteria: any;
+    data: any;
+    namespace: string;
     operation: string;
     operationId: any;
-    namespace: string;
-    data?: any;
-    criteria?: any;
-    targetId?: any;
+    targetId: any;
+    timestamp: Date;
+    ts: Timestamp;
 }
