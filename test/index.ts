@@ -1,10 +1,10 @@
 /**
  * Module dependencies.
  */
-import { getDbConnection, timeout } from '../src/util';
+import { getDbConnection, getTimestamp, timeout } from '../src/util';
 import { expect } from 'chai';
 import * as mocha from 'mocha';
-import { Cursor, Db, MongoClient } from 'mongodb';
+import { Cursor, Db, MongoClient, Timestamp } from 'mongodb';
 import { createInstance, MongoOplog, OplogDoc } from '../src';
 
 const conn = {
@@ -337,6 +337,68 @@ describe('mongo-oplog', () => {
       });
 
     });
+
+    describe('isCurrent', () => {
+        it('should be `true` if no document is found', async () => {
+            const oplog = new MongoOplog(conn.oplog, {ns: '*.iscurrentnodoc'});
+            await oplog.tail();
+            expect(await oplog.isCurrent()).to.eq(true);
+        });
+
+        it('should be `false` if documents inserted but internal ts is off', async () => {
+            const ns = 'isnotcurrent';
+            const oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
+            const notCurrent = db.collection(ns);
+            await notCurrent.insert({n: 'first'});
+            expect(await oplog.isCurrent()).to.eq(false);
+        });
+
+        it('should be `true` if internal ts matches', async () => {
+            let pResolve: Function;
+            const promise = new Promise((resolve) => pResolve = resolve);
+            const oplog = new MongoOplog(conn.oplog, {ns: '*.iscurrentinternal'});
+            const coll = db.collection('iscurrentinternal');
+            oplog.once('insert', () => pResolve());
+            coll.insert({n: 'I1'});
+            await oplog.tail()
+                .then(() => promise)
+                .then(async () =>
+                    expect(await oplog.isCurrent()).to.eq(true)
+                )
+            ;
+        });
+
+        it('should be `true` if external ts matches', async () => {
+            let pResolve: Function;
+            const promise = new Promise((resolve) => pResolve = resolve);
+            const ns = 'exttimestamptrue';
+            const oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
+            const coll = db.collection(ns);
+            oplog.once('insert', (doc: OplogDoc) => {
+                pResolve(doc.ts);
+            });
+            coll.insert({n: 'external ts'});
+            await oplog.tail()
+                .then(() => promise)
+                .then(async (ts: Timestamp) =>
+                    expect(await oplog.isCurrent(ts)).to.eq(true)
+                )
+            ;
+        });
+
+        it('should throw if external is ts supplied and no matching doc', async () => {
+            const ns = 'exttsthrow';
+            const ts = getTimestamp();
+            const oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
+            try {
+                await oplog.isCurrent(ts);
+                expect(false).to.eq(true, 'Should have thrown.');
+            } catch (err) {
+                expect(err.message).to.eq('ERR_NO_DOC');
+            }
+        });
+    });
+
     after((done) => {
         db.dropDatabase(() => {
            db.close(done);

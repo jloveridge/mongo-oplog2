@@ -2,9 +2,9 @@ import { debuglog } from "util";
 import { Cursor, Db, MongoClient, MongoClientOptions, Timestamp} from "mongodb";
 import { EventEmitter, ListenerFn } from "eventemitter3";
 import { FilteredMongoOplog } from "./filter";
-import { getStream } from "./stream";
-import { getOpName, getTimestamp, omit, OplogDoc, prettify } from './util';
-import * as util from './util';
+import { getLastDoc, getStream } from "./stream";
+import { getOpName, getTimestamp, omit, OplogDoc, prettify } from "./util";
+import * as util from "./util";
 export { getOpName, getTimestamp, OplogDoc, PrettyOplogDoc, prettify } from "./util";
 export { FilteredMongoOplog } from "./filter";
 
@@ -16,6 +16,8 @@ export interface MongoOplog extends EventEmitter {
     pretty: boolean;
     filter(): FilteredMongoOplog;
     filter(ns: string): FilteredMongoOplog;
+    isCurrent(): Promise<boolean>;
+    isCurrent(ts: Timestamp): Promise<boolean>;
     stop(): Promise<MongoOplog>;
     tail(): Promise<Cursor>;
     destroy(): Promise<MongoOplog>;
@@ -95,6 +97,29 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
         this.removeAllListeners();
         this.emit("destroy");
         return this;
+    }
+
+    /**
+     * If a timestamp is not provided then returns `true` if either no
+     * document was found or the `ts` value of the document matches the
+     * internally tracked ts; `false` otherwise.
+     * If timestamp is provided returs `true` only if the document returned
+     * matches the specified timestamp. If `null` is returned an Error is
+     * raised. If a document is returned but the `ts` property does not match
+     * the specified `ts` returns `false`.
+     * @param ts optional timestamp to check, if not supplied use internal
+     */
+    async isCurrent(ts?: Timestamp): Promise<boolean> {
+        const db = await this.connect();
+        const doc = await getLastDoc(db, this.ns, this.collectionName);
+        if (!doc) {
+            if (ts) { throw new Error("ERR_NO_DOC"); }
+            return true;
+        }
+        if (doc.ts.equals(ts || this._ts)) {
+            return true;
+        }
+        return false;
     }
 
     /**

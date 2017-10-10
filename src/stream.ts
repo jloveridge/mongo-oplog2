@@ -1,5 +1,5 @@
 import { Cursor, Db, Timestamp } from "mongodb";
-import { getTimestamp, regex } from "./util";
+import { getTimestamp, regex, OplogDoc } from "./util";
 
 /**
  * Obtain a cursor stream for the oplog.
@@ -22,4 +22,20 @@ export async function getStream(db?: Db, ns?: string, ts?: number | Timestamp, c
         oplogReplay: true,
         tailable: true,
     }).stream();
+}
+
+/**
+ * Retrieves the last document from the capped collection.
+ * @param db database connection
+ * @param ns optional namespace for filtering of ducoments returned
+ * @param coll collection to query (default: "oplog.rs")
+ */
+export async function getLastDoc(db?: Db, ns?: string, coll?: string) {
+    if (!db) { throw new Error("MongoDB connection is missing."); }
+    coll = coll || "oplog.rs";
+    const collection = db.collection(coll);
+    const query: any = ns ? {ns: {$regex: regex(ns)}} : {};
+    const cursor = collection.find(query).sort({$natural: -1}).limit(1);
+    const doc: OplogDoc = await cursor.next();
+    return doc;
 }
