@@ -335,7 +335,6 @@ describe('mongo-oplog', () => {
               .then(() => cs.insert({ n: 'L1' }))
               .catch(done);
       });
-
     });
 
     describe('isCurrent', () => {
@@ -343,7 +342,7 @@ describe('mongo-oplog', () => {
             const oplog = new MongoOplog(conn.oplog, {ns: '*.iscurrentnodoc'});
             await oplog.tail();
             expect(await oplog.isCurrent()).to.eq(true);
-        });
+        }).timeout(5000);
 
         it('should be `false` if documents inserted but internal ts is off', async () => {
             const ns = 'isnotcurrent';
@@ -351,7 +350,7 @@ describe('mongo-oplog', () => {
             const notCurrent = db.collection(ns);
             await notCurrent.insert({n: 'first'});
             expect(await oplog.isCurrent()).to.eq(false);
-        });
+        }).timeout(5000);
 
         it('should be `true` if internal ts matches', async () => {
             let pResolve: Function;
@@ -366,7 +365,7 @@ describe('mongo-oplog', () => {
                     expect(await oplog.isCurrent()).to.eq(true)
                 )
             ;
-        });
+        }).timeout(5000);
 
         it('should be `true` if external ts matches', async () => {
             let pResolve: Function;
@@ -384,7 +383,7 @@ describe('mongo-oplog', () => {
                     expect(await oplog.isCurrent(ts)).to.eq(true)
                 )
             ;
-        });
+        }).timeout(5000);
 
         it('should throw if external is ts supplied and no matching doc', async () => {
             const ns = 'exttsthrow';
@@ -396,7 +395,7 @@ describe('mongo-oplog', () => {
             } catch (err) {
                 expect(err.message).to.eq('ERR_NO_DOC');
             }
-        });
+        }).timeout(5000);
     });
 
     after((done) => {
