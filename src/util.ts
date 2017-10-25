@@ -1,4 +1,7 @@
+import { debuglog } from "util";
 import { Db, MongoClient, MongoClientOptions, Timestamp } from "mongodb";
+
+const debug = debuglog("mongo-oplog2:utils");
 
 export const opMap = Object.freeze({
     i: "insert", insert: "i",
@@ -19,7 +22,10 @@ export const opMap = Object.freeze({
 export async function getDbConnection(uri: string, opts: MongoClientOptions = {}): Promise<Db> {
     return new Promise<Db>((resolve, reject) => {
         MongoClient.connect(uri, opts, (err, database) => {
-            if (err) { return reject(err); }
+            if (err) {
+                debug(err.message);
+                return reject(err);
+            }
             return resolve(database);
         });
     });

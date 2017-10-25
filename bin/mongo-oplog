@@ -1,0 +1,15 @@
+#!/usr/bin/env node
+let path = require('path');
+let main;
+try {
+    main = require('../lib/bin/mongo-oplog').main;
+} catch (err) {
+    try {
+        require('ts-node/register');
+        main = require('../src/bin/mongo-oplog').main;
+    } catch (err) {
+        console.error('ERROR: cannot initialize program.');
+        process.exit(-1);
+    }
+}
+main(process.argv);
