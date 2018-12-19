@@ -3,20 +3,28 @@
  */
 import { getDbConnection, getTimestamp, timeout } from '../src/util';
 import { expect } from 'chai';
-import * as mocha from 'mocha';
-import { Cursor, Db, MongoClient, Timestamp } from 'mongodb';
+import 'mocha';
+import { Cursor, Db, Timestamp } from 'mongodb';
 import { createInstance, MongoOplog, OplogDoc } from '../src';
+import { fail } from 'assert';
 
 const conn = {
     mongo: 'mongodb://127.0.0.1:27017/optest',
     oplog: 'mongodb://127.0.0.1:27017/local',
     error: 'mongodb://127.0.0.1:8888/error'
 };
+let oplog: MongoOplog = null as any;
 
 describe('mongo-oplog', () => {
     let db: Db;
     before(async () => {
         db = await getDbConnection(conn.mongo);
+    });
+    afterEach(async () => {
+        if (oplog) {
+            oplog.destroy();
+            oplog = null as any;
+        }
     });
 
     it('should be a function', () => {
@@ -25,7 +33,7 @@ describe('mongo-oplog', () => {
     });
 
     it('should have required methods', () => {
-        let oplog = new MongoOplog();
+        oplog = new MongoOplog();
         expect(typeof oplog.tail).to.eq('function');
         expect(typeof oplog.stop).to.eq('function');
         expect(typeof oplog.filter).to.eq('function');
@@ -34,13 +42,14 @@ describe('mongo-oplog', () => {
 
     it('should accept mongodb object as connection', async () => {
         const database = await getDbConnection(conn.oplog);
-        let oplog = new MongoOplog(database);
+        oplog = new MongoOplog(database);
         expect(oplog.db).to.eq(database);
+        database.close();
     });
 
     it('should emit `op` event', async () => {
         let coll = db.collection('a');
-        let oplog = new MongoOplog(conn.oplog, { ns: 'optest.a' });
+        oplog = new MongoOplog(conn.oplog, { ns: 'optest.a' });
         await oplog.tail().then(() => coll.insert({n: "JB", c: 1}));
         return new Promise<any>((resolve) => {
             oplog.on("op", (doc: OplogDoc) => {
@@ -50,12 +59,11 @@ describe('mongo-oplog', () => {
                 resolve();
             });
         });
-
     });
 
     it('should emit `insert` event', (done) => {
         let coll = db.collection('b');
-        let oplog = new MongoOplog(conn.oplog, { ns: 'optest.b' });
+        oplog = new MongoOplog(conn.oplog, { ns: 'optest.b' });
         oplog.on("insert", (doc: OplogDoc) => {
             expect(doc.op).to.eq('i');
             expect(doc.o.n).to.eq('JBL');
@@ -69,7 +77,7 @@ describe('mongo-oplog', () => {
 
     it('should emit `update` event', (done) => {
         let coll = db.collection('c');
-        let oplog = new MongoOplog(conn.oplog, { ns: 'optest.c' });
+        oplog = new MongoOplog(conn.oplog, { ns: 'optest.c' });
         oplog.on("update", (doc: OplogDoc) => {
             expect(doc.op).to.eq('u');
             expect(doc.o.$set.n).to.eq('US');
@@ -85,7 +93,7 @@ describe('mongo-oplog', () => {
 
     it('should emit `delete` event', (done) => {
         let coll = db.collection('d');
-        let oplog = new MongoOplog(conn.oplog, { ns: 'optest.d' });
+        oplog = new MongoOplog(conn.oplog, { ns: 'optest.d' });
         let id: any;
         oplog.tail()
             .then(x => coll.insert({ n: 'PM', c: 4 }))
@@ -102,15 +110,15 @@ describe('mongo-oplog', () => {
     });
 
     it('should emit cursor `end` event', (done) => {
-        let oplog = new MongoOplog(conn.oplog);
+        oplog = new MongoOplog(conn.oplog);
         oplog.once("end", done);
         oplog.tail()
-          .then((stream) => stream.emit("end"))
+          .then((stream) => stream && stream.emit("end"))
           .catch(done);
     });
 
     it('should emit `error` event', (done) => {
-        let oplog = new MongoOplog(conn.error);
+        oplog = new MongoOplog(conn.error);
         oplog.on('error', (err: Error) => {
             expect(err).instanceof(Error);
             done();
@@ -122,7 +130,7 @@ describe('mongo-oplog', () => {
     it('should filter by namespace in constructor', (done) => {
         let f1 = db.collection('f1');
         let f2 = db.collection('f2');
-        let oplog = new MongoOplog(conn.oplog, { ns: '*.f1' });
+        oplog = new MongoOplog(conn.oplog, { ns: '*.f1' });
         oplog.on('op', (doc: OplogDoc) => {
             expect(doc.o.n).to.eq('L2');
             done();
@@ -136,7 +144,7 @@ describe('mongo-oplog', () => {
 
     it('should stop tailing', async () => {
         let coll = db.collection('stoptail');
-        let oplog = new MongoOplog(conn.oplog, { ns: '*.stoptail' });
+        oplog = new MongoOplog(conn.oplog, { ns: '*.stoptail' });
         let count = 0;
         let resolved = false;
         let stopped = new Promise<any>((resolve) => {
@@ -159,7 +167,7 @@ describe('mongo-oplog', () => {
 
     it('should destroy oplog', (done) => {
         let coll = db.collection('i');
-        let oplog = new MongoOplog(conn.oplog);
+        oplog = new MongoOplog(conn.oplog);
         oplog.on('op', (doc: OplogDoc) => {
             oplog.destroy().then(() => done());
         });
@@ -171,10 +179,10 @@ describe('mongo-oplog', () => {
 
     it('should ignore oplog op events', (done) => {
         let coll = db.collection('j');
-        let oplog = new MongoOplog(conn.oplog, { ns: '*.j' });
+        oplog = new MongoOplog(conn.oplog, { ns: '*.j' });
         oplog.on('op', (doc: OplogDoc) => {
             oplog.ignore = true;
-            done();
+            done(); // test would fail if done is called twice
         });
         oplog.tail()
             .then(() => coll.insert({ n: 'CR' }))
@@ -186,7 +194,7 @@ describe('mongo-oplog', () => {
 
     it('should stop tailing', (done) => {
         let coll = db.collection('h');
-        let oplog = new MongoOplog(conn.oplog, { ns: '*.h' });
+        oplog = new MongoOplog(conn.oplog, { ns: '*.h' });
         oplog.on('op', (doc: OplogDoc) => {
             oplog.stop();
             done();
@@ -200,7 +208,7 @@ describe('mongo-oplog', () => {
     it('should start from last ts when re-tailing', async () => {
         let c = 0;
         let coll = db.collection('restartfromts');
-        let oplog = new MongoOplog(conn.oplog, { ns: 'optest.restartfromts' });
+        oplog = new MongoOplog(conn.oplog, { ns: 'optest.restartfromts' });
         let res3: Function, promise3 = new Promise<any>((resolve) => res3 = resolve);
         let res6: Function, promise6 = new Promise<any>((resolve) => res6 = resolve);
         oplog.on('op', (doc: OplogDoc) => {
@@ -232,12 +240,12 @@ describe('mongo-oplog', () => {
         let c = 0;
         let v: any = {};
         let coll = db.collection('retailonstop');
-        let oplog = new MongoOplog(conn.oplog, { ns: 'optest.retailonstop' });
+        oplog = new MongoOplog(conn.oplog, { ns: 'optest.retailonstop' });
         let values: any = {};
         let valueSize = 0;
         let res3: Function, promise3 = new Promise<any>((resolve) => res3 = resolve);
         let res6: Function, promise6 = new Promise<any>((resolve) => res6 = resolve);
-        let stream: Cursor;
+        let stream: Cursor | undefined;
         oplog.on('op', (doc: OplogDoc) => {
             const value = doc.o.c;
             expect(value).to.eq(++c);
@@ -247,11 +255,13 @@ describe('mongo-oplog', () => {
         return oplog.tail()
             .then(async (_stream) => {
                 stream = _stream;
-                stream.on('error', async () => {
-                    await coll.insert({c: 4});
-                    await coll.insert({c: 5});
-                    await coll.insert({c: 6});
-                });
+                if (stream) {
+                    stream.on('error', async () => {
+                        await coll.insert({c: 4});
+                        await coll.insert({c: 5});
+                        await coll.insert({c: 6});
+                    });
+                }
             })
             .then(async () => {
                 await coll.insert({ c: 1 });
@@ -261,21 +271,27 @@ describe('mongo-oplog', () => {
             })
             // Mimic a timeout error
             .then(() => {
+                if (!stream) {
+                    return;
+                }
                 stream.emit('error', new Error('cursor killed or timed out'));
                 stream.close();
                 return promise6;
+            })
+            .catch((err) => {
+                fail(err);
             });
     });
 
     it('should not throw if `destroy` called before connecting', async () => {
-        const oplog = new MongoOplog();
+        oplog = new MongoOplog();
         await oplog.destroy();
     });
 
     describe('filter tests', () => {
       it('should destroy filter', (done) => {
           let coll = db.collection('g');
-          let oplog = new MongoOplog(conn.oplog);
+          oplog = new MongoOplog(conn.oplog);
           let filter = oplog.filter('*.g');
           filter.on('op', (doc: OplogDoc) => {
               filter.destroy();
@@ -289,7 +305,7 @@ describe('mongo-oplog', () => {
 
       it('should ignore filter op events', (done) => {
           let coll = db.collection('k');
-          let oplog = new MongoOplog(conn.oplog);
+          oplog = new MongoOplog(conn.oplog);
           let filter = oplog.filter('*.k');
 
           filter.on('op', (doc: OplogDoc) => {
@@ -306,7 +322,7 @@ describe('mongo-oplog', () => {
       it('should filter by collection', (done) => {
           let e1 = db.collection('e1');
           let e2 = db.collection('e2');
-          let oplog = new MongoOplog(conn.oplog);
+          oplog = new MongoOplog(conn.oplog);
 
           let filter = oplog.filter('*.e1');
 
@@ -323,7 +339,7 @@ describe('mongo-oplog', () => {
       it('should filter by the exact namespace', (done) => {
           let cs = db.collection('cs');
           let css = db.collection('css');
-          let oplog = new MongoOplog(conn.oplog);
+          oplog = new MongoOplog(conn.oplog);
           let filter = oplog.filter('optest.cs');
 
           filter.on('op', (doc: OplogDoc) => {
@@ -339,14 +355,14 @@ describe('mongo-oplog', () => {
 
     describe('isCurrent', () => {
         it('should be `true` if no document is found', async () => {
-            const oplog = new MongoOplog(conn.oplog, {ns: '*.iscurrentnodoc'});
+            oplog = new MongoOplog(conn.oplog, {ns: '*.iscurrentnodoc'});
             await oplog.tail();
             expect(await oplog.isCurrent()).to.eq(true);
         }).timeout(5000);
 
         it('should be `false` if documents inserted but internal ts is off', async () => {
             const ns = 'isnotcurrent';
-            const oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
+            oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
             const notCurrent = db.collection(ns);
             await notCurrent.insert({n: 'first'});
             expect(await oplog.isCurrent()).to.eq(false);
@@ -355,7 +371,7 @@ describe('mongo-oplog', () => {
         it('should be `true` if internal ts matches', async () => {
             let pResolve: Function;
             const promise = new Promise((resolve) => pResolve = resolve);
-            const oplog = new MongoOplog(conn.oplog, {ns: '*.iscurrentinternal'});
+            oplog = new MongoOplog(conn.oplog, {ns: '*.iscurrentinternal'});
             const coll = db.collection('iscurrentinternal');
             oplog.once('insert', () => pResolve());
             coll.insert({n: 'I1'});
@@ -371,7 +387,7 @@ describe('mongo-oplog', () => {
             let pResolve: Function;
             const promise = new Promise((resolve) => pResolve = resolve);
             const ns = 'exttimestamptrue';
-            const oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
+            oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
             const coll = db.collection(ns);
             oplog.once('insert', (doc: OplogDoc) => {
                 pResolve(doc.ts);
@@ -388,7 +404,7 @@ describe('mongo-oplog', () => {
         it('should throw if external is ts supplied and no matching doc', async () => {
             const ns = 'exttsthrow';
             const ts = getTimestamp();
-            const oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
+            oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
             try {
                 await oplog.isCurrent(ts);
                 expect(false).to.eq(true, 'Should have thrown.');
