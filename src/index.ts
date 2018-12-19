@@ -37,6 +37,7 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
     private collectionName: string;
     private _stream?: Cursor;
     private _ts: Timestamp;
+    private tailing: boolean;
 
     /**
      * @param uriOrDb a connection string or existing database connection
@@ -54,6 +55,7 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
             this._db = uriOrDb;
             this.extDb = true;
         }
+        this.tailing = false;
         this.pretty = !!opts.pretty;
         this.ns = opts.ns || "";
         this.collectionName = opts.coll || "";
@@ -127,7 +129,11 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
      * can be resumed by calling the `tail` function.
      */
     async stop(): Promise<MongoOplog> {
-        if (this._stream) { this._stream.destroy(); }
+        if (this._stream) {
+            this._stream.destroy();
+            delete this._stream;
+        }
+        this.tailing = false;
         debug("streaming stopped");
         return this;
     }
@@ -135,8 +141,9 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
     /**
      * Start tailing the oplog.
      */
-    async tail(): Promise<Cursor> {
-        const onError = (err: Error): any => {
+    async tail(): Promise<Cursor | undefined> {
+        const onError = async (err: Error): Promise<any> => {
+            await this.stop();
             if (reErr.test(err.message)) {
                 debug("cursor timedout - retailing: %j", err);
                 return this.tail();
@@ -146,6 +153,10 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
             }
         };
         try {
+            if (this.tailing || this._stream) {
+                return this._stream;
+            }
+            this.tailing = true;
             if (!this._db) { await this.connect(); }
             this._stream = await getStream(this._db, this.ns, this.ts, this.collectionName);
             debug("stream started");
