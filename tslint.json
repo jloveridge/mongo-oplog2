@@ -67,7 +67,6 @@
       "parameter",
       "property-declaration"
     ],
-    "typeof-compare": true,
     "use-isnan": true,
     "variable-name": [
       true,
