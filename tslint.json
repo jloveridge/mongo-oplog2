@@ -14,7 +14,7 @@
     ],
     "class-name": true,
     "comment-format": [ true, "check-space" ],
-    "completed-docs": [true, "classes", "functions", "methods"],
+    "completed-docs": [false],
     "curly": true,
     "cyclomatic-complexity": true,
     "eofline": true,
@@ -67,7 +67,6 @@
       "parameter",
       "property-declaration"
     ],
-    "typeof-compare": true,
     "use-isnan": true,
     "variable-name": [
       true,

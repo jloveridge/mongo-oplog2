@@ -15,13 +15,12 @@ export async function getStream(db?: Db, ns?: string, ts?: number | Timestamp, c
     const timestamp = getTimestamp(ts);
     const query: any = {ts: {$gt: timestamp}};
     if (ns) { query.ns = {$regex: regex(ns)}; }
-    return await collection.find(query, {
-        awaitData: true,
-        noCursorTimeout: true,
-        numberOfRetries: Number.MAX_VALUE,
-        oplogReplay: true,
-        tailable: true,
-    }).stream();
+    const cursor = collection.find(query);
+    for (const flag of ['awaitData', 'noCursorTimeout', 'oplogReplay', 'tailable']) {
+        cursor.addCursorFlag(flag, true);
+    }
+    cursor.setCursorOption('numberOfRetries', Number.MAX_VALUE as any);
+    return cursor.stream();
 }
 
 /**

@@ -1,0 +1,6 @@
+{
+  "check-leaks": true,
+  "require": "ts-node/register",
+  "extension": ["ts"],
+  "watch-files": ["test/**/*.ts"]
+}

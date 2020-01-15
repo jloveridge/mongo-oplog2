@@ -1,10 +1,10 @@
 /**
  * Module dependencies.
  */
-import { getDbConnection, getTimestamp, timeout } from '../src/util';
+import { getTimestamp, timeout } from '../src/util';
 import { expect } from 'chai';
 import 'mocha';
-import { Cursor, Db, Timestamp } from 'mongodb';
+import { Cursor, Db, MongoClient, Timestamp } from 'mongodb';
 import { createInstance, MongoOplog, OplogDoc } from '../src';
 import { fail } from 'assert';
 
@@ -16,9 +16,11 @@ const conn = {
 let oplog: MongoOplog = null as any;
 
 describe('mongo-oplog', () => {
+    let client: MongoClient;
     let db: Db;
     before(async () => {
-        db = await getDbConnection(conn.mongo);
+        client = await MongoClient.connect(conn.mongo, {useUnifiedTopology: true});
+        db = client.db();
     });
     afterEach(async () => {
         if (oplog) {
@@ -41,16 +43,17 @@ describe('mongo-oplog', () => {
     });
 
     it('should accept mongodb object as connection', async () => {
-        const database = await getDbConnection(conn.oplog);
+        const mongoClient = await MongoClient.connect(conn.oplog, {useUnifiedTopology: true});
+        const database = mongoClient.db();
         oplog = new MongoOplog(database);
         expect(oplog.db).to.eq(database);
-        database.close();
+        await mongoClient.close();
     });
 
     it('should emit `op` event', async () => {
         let coll = db.collection('a');
         oplog = new MongoOplog(conn.oplog, { ns: 'optest.a' });
-        await oplog.tail().then(() => coll.insert({n: "JB", c: 1}));
+        await oplog.tail().then(() => coll.insertOne({n: "JB", c: 1}));
         return new Promise<any>((resolve) => {
             oplog.on("op", (doc: OplogDoc) => {
                 expect(doc.op).to.eq("i");
@@ -71,7 +74,7 @@ describe('mongo-oplog', () => {
             done();
         });
         oplog.tail()
-            .then(() => coll.insert({n: "JBL", c: 1}))
+            .then(() => coll.insertOne({n: "JBL", c: 1}))
             .catch(done);
     });
 
@@ -85,8 +88,8 @@ describe('mongo-oplog', () => {
             done();
         });
         oplog.tail()
-            .then(() => coll.insert({n: "CR", c: 3}))
-            .then(() => coll.update(
+            .then(() => coll.insertOne({n: "CR", c: 3}))
+            .then(() => coll.updateOne(
                 {_id: {$exists: true}, n: "CR", c: 3}, {$set: {n: "US", c: 7}}
             )).catch(done);
     });
@@ -96,10 +99,10 @@ describe('mongo-oplog', () => {
         oplog = new MongoOplog(conn.oplog, { ns: 'optest.d' });
         let id: any;
         oplog.tail()
-            .then(x => coll.insert({ n: 'PM', c: 4 }))
+            .then(x => coll.insertOne({ n: 'PM', c: 4 }))
             .then(doc => {
                 id = (doc.ops || doc)[0]._id;
-                return coll.remove({_id: {$exists: true}, n: 'PM', c: 4 });
+                return coll.deleteOne({_id: {$exists: true}, n: 'PM', c: 4 });
             })
             .catch(done);
         oplog.on("delete", (doc: OplogDoc) => {
@@ -124,7 +127,7 @@ describe('mongo-oplog', () => {
             done();
         });
         oplog.tail().catch(done);
-    });
+    }).timeout(40000);
 
 
     it('should filter by namespace in constructor', (done) => {
@@ -136,8 +139,8 @@ describe('mongo-oplog', () => {
             done();
         });
         oplog.tail()
-          .then(() => f1.insert({ n: 'L2' }))
-          .then(() => f2.insert({ n: 'L2' }))
+          .then(() => f1.insertOne({ n: 'L2' }))
+          .then(() => f2.insertOne({ n: 'L2' }))
           .catch(done);
     });
 
@@ -156,9 +159,9 @@ describe('mongo-oplog', () => {
         });
 
         return oplog.tail()
-            .then(() => coll.insert({ n: 'CR' }))
+            .then(() => coll.insertOne({ n: 'CR' }))
             .then(() => stopped)
-            .then(() => coll.insert({ n: 'CR' }))
+            .then(() => coll.insertOne({ n: 'CR' }))
             .then(async() => {
                 await timeout(10);
                 expect(count).to.eq(1);
@@ -172,8 +175,8 @@ describe('mongo-oplog', () => {
             oplog.destroy().then(() => done());
         });
         oplog.tail()
-            .then(() => coll.insert({ n: 'CR' }))
-            .then(() => coll.insert({ n: 'CR' }))
+            .then(() => coll.insertOne({ n: 'CR' }))
+            .then(() => coll.insertOne({ n: 'CR' }))
             .catch(done);
     });
 
@@ -185,9 +188,9 @@ describe('mongo-oplog', () => {
             done(); // test would fail if done is called twice
         });
         oplog.tail()
-            .then(() => coll.insert({ n: 'CR' }))
+            .then(() => coll.insertOne({ n: 'CR' }))
             .then(() => {
-                coll.insert({ n: 'CR' });
+                coll.insertOne({ n: 'CR' });
             })
             .catch(done);
     });
@@ -200,8 +203,8 @@ describe('mongo-oplog', () => {
             done();
         });
         oplog.tail()
-            .then(() => coll.insert({ n: 'CR' }))
-            .then(() => coll.insert({ n: 'CR' }))
+            .then(() => coll.insertOne({ n: 'CR' }))
+            .then(() => coll.insertOne({ n: 'CR' }))
             .catch(done);
     });
 
@@ -219,16 +222,16 @@ describe('mongo-oplog', () => {
         });
 
         return oplog.tail().then(async () => {
-                await coll.insert({ c: 1 });
-                await coll.insert({ c: 2 });
-                await coll.insert({ c: 3 });
+                await coll.insertOne({ c: 1 });
+                await coll.insertOne({ c: 2 });
+                await coll.insertOne({ c: 3 });
                 return promise3;
             })
             .then(() => oplog.stop())
             .then(async () => {
-                await coll.insert({ c: 4 });
-                await coll.insert({ c: 5 });
-                await coll.insert({ c: 6 });
+                await coll.insertOne({ c: 4 });
+                await coll.insertOne({ c: 5 });
+                await coll.insertOne({ c: 6 });
             })
            .then(() => {
                oplog.tail();
@@ -257,16 +260,16 @@ describe('mongo-oplog', () => {
                 stream = _stream;
                 if (stream) {
                     stream.on('error', async () => {
-                        await coll.insert({c: 4});
-                        await coll.insert({c: 5});
-                        await coll.insert({c: 6});
+                        await coll.insertOne({c: 4});
+                        await coll.insertOne({c: 5});
+                        await coll.insertOne({c: 6});
                     });
                 }
             })
             .then(async () => {
-                await coll.insert({ c: 1 });
-                await coll.insert({ c: 2 });
-                await coll.insert({ c: 3 });
+                await coll.insertOne({ c: 1 });
+                await coll.insertOne({ c: 2 });
+                await coll.insertOne({ c: 3 });
                 return promise3;
             })
             // Mimic a timeout error
@@ -298,8 +301,8 @@ describe('mongo-oplog', () => {
               done();
           });
           oplog.tail()
-              .then(() => coll.insert({ n: 'CR' }))
-              .then(() => coll.insert({ n: 'CR' }))
+              .then(() => coll.insertOne({ n: 'CR' }))
+              .then(() => coll.insertOne({ n: 'CR' }))
               .catch(done);
       });
 
@@ -314,8 +317,8 @@ describe('mongo-oplog', () => {
           });
 
           oplog.tail()
-              .then(() => coll.insert({ n: 'CR' }))
-              .then(() => coll.insert({ n: 'CR' }))
+              .then(() => coll.insertOne({ n: 'CR' }))
+              .then(() => coll.insertOne({ n: 'CR' }))
               .catch(done);
       });
 
@@ -331,8 +334,8 @@ describe('mongo-oplog', () => {
               done();
           });
           oplog.tail()
-              .then(() => e1.insert({ n: 'L1' }))
-              .then(() => e2.insert({ n: 'L1' }))
+              .then(() => e1.insertOne({ n: 'L1' }))
+              .then(() => e2.insertOne({ n: 'L1' }))
               .catch(done);
       });
 
@@ -347,8 +350,8 @@ describe('mongo-oplog', () => {
               else { done(); }
           });
           oplog.tail()
-              .then(() => css.insert({ n: 'L2' }))
-              .then(() => cs.insert({ n: 'L1' }))
+              .then(() => css.insertOne({ n: 'L2' }))
+              .then(() => cs.insertOne({ n: 'L1' }))
               .catch(done);
       });
     });
@@ -364,7 +367,7 @@ describe('mongo-oplog', () => {
             const ns = 'isnotcurrent';
             oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
             const notCurrent = db.collection(ns);
-            await notCurrent.insert({n: 'first'});
+            await notCurrent.insertOne({n: 'first'});
             expect(await oplog.isCurrent()).to.eq(false);
         }).timeout(5000);
 
@@ -374,7 +377,7 @@ describe('mongo-oplog', () => {
             oplog = new MongoOplog(conn.oplog, {ns: '*.iscurrentinternal'});
             const coll = db.collection('iscurrentinternal');
             oplog.once('insert', () => pResolve());
-            coll.insert({n: 'I1'});
+            coll.insertOne({n: 'I1'});
             await oplog.tail()
                 .then(() => promise)
                 .then(async () =>
@@ -392,7 +395,7 @@ describe('mongo-oplog', () => {
             oplog.once('insert', (doc: OplogDoc) => {
                 pResolve(doc.ts);
             });
-            coll.insert({n: 'external ts'});
+            coll.insertOne({n: 'external ts'});
             await oplog.tail()
                 .then(() => promise)
                 .then(async (ts: Timestamp) =>
@@ -401,7 +404,7 @@ describe('mongo-oplog', () => {
             ;
         }).timeout(5000);
 
-        it('should throw if external is ts supplied and no matching doc', async () => {
+        it('should throw if external ts supplied and no matching doc', async () => {
             const ns = 'exttsthrow';
             const ts = getTimestamp();
             oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
@@ -416,7 +419,7 @@ describe('mongo-oplog', () => {
 
     after((done) => {
         db.dropDatabase(() => {
-           db.close(done);
+           client.close(done);
         });
     });
 });

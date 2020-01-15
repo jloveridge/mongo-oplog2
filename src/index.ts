@@ -1,6 +1,6 @@
 import { debuglog } from "util";
 import { Cursor, Db, MongoClient, MongoClientOptions, Timestamp} from "mongodb";
-import { EventEmitter, ListenerFn } from "eventemitter3";
+import { EventEmitterStatic, EventEmitter, ListenerFn } from "eventemitter3";
 import { FilteredMongoOplog } from "./filter";
 import { getLastDoc, getStream } from "./stream";
 import { getOpName, getTimestamp, omit, OplogDoc, prettify } from "./util";
@@ -11,7 +11,7 @@ export { FilteredMongoOplog } from "./filter";
 const debug = debuglog("mongo-oplog2");
 const reErr = /cursor (killed or )?timed out/;
 
-export interface MongoOplog extends EventEmitter {
+export interface MongoOplog extends EventEmitterStatic {
     ignore: boolean;
     pretty: boolean;
     filter(): FilteredMongoOplog;
@@ -29,6 +29,7 @@ export interface MongoOplog extends EventEmitter {
 export class MongoOplog extends EventEmitter implements MongoOplog {
     ignore: boolean = false;
     pretty: boolean = false;
+    private _client: MongoClient;
     private _db?: Db;
     private dbOpts?: MongoClientOptions;
     private extDb: boolean = false;
@@ -50,7 +51,11 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
         super();
         if (!uriOrDb || typeof uriOrDb === "string") {
             this.uri = uriOrDb || "mongodb://127.0.0.1/local";
-            this.dbOpts = util.omit(opts, ["coll", "ns", "pretty", "since"]);
+            const dbOpts = opts.mongo || {};
+            if (!('useUnifiedTopology' in dbOpts)) {
+                dbOpts.useUnifiedTopology = true;
+            }
+            this.dbOpts = dbOpts;
         } else {
             this._db = uriOrDb;
             this.extDb = true;
@@ -188,11 +193,11 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
      */
     private async connect(): Promise<Db> {
         if (this._db) { return this._db; }
-        const db = await util.getDbConnection(this.uri, this.dbOpts);
+        this._client = await MongoClient.connect(this.uri, this.dbOpts);
         debug("Connected to oplog database.");
         this.emit("connect");
-        this._db = db;
-        return db;
+        this._db = this._client.db();
+        return this._db;
     }
 
     /**
@@ -204,7 +209,9 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
             debug("refusing to disconnect external or unconnected db.");
             return;
         }
-        await this._db.close(true);
+        if (this._client) {
+            await this._client.close(true);
+        }
         this._db = void 0;
         this.emit("disconnect");
     }
@@ -215,6 +222,7 @@ export interface Options {
     ns?: string;
     pretty?: boolean;
     since?: number;
+    mongo?: MongoClientOptions;
 }
 
 /**

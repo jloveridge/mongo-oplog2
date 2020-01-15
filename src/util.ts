@@ -1,7 +1,7 @@
 import { debuglog } from "util";
-import { Db, MongoClient, MongoClientOptions, Timestamp } from "mongodb";
+import { Timestamp } from "mongodb";
 
-const debug = debuglog("mongo-oplog2:utils");
+debuglog("mongo-oplog2:utils");
 
 export const opMap = Object.freeze({
     i: "insert", insert: "i",
@@ -10,26 +10,6 @@ export const opMap = Object.freeze({
     u: "update", update: "i",
 });
 
-
-/**
- * Create a connection to a MongoDB database. This method is only necessary
- * since type information for the MongoDB driver appears to be inaccurate in
- * that the result of `await`ing on `MongoClient.connect` resolves to `void`
- * instead of to `Db` as it should.
- * @param uri a MongoDB URI string
- * @param opts any additional options to pass to the driver
- */
-export async function getDbConnection(uri: string, opts: MongoClientOptions = {}): Promise<Db> {
-    return new Promise<Db>((resolve, reject) => {
-        MongoClient.connect(uri, opts, (err, database) => {
-            if (err) {
-                debug(err.message);
-                return reject(err);
-            }
-            return resolve(database);
-        });
-    });
-}
 
 /**
  * Converts from the operation code from the native MongoDB versions to
@@ -50,7 +30,7 @@ export function getOpName(op: string): string {
  */
 export function getTimestamp(ts?: number | Timestamp): Timestamp {
     if (typeof ts === "number" || !ts) {
-        return new Timestamp(0, ts ? ts : Date.now() / 1000);
+        return new Timestamp(0, ts ? ts : (Date.now() / 1000));
     }
     return ts;
 }
