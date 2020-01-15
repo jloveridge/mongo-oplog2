@@ -404,7 +404,7 @@ describe('mongo-oplog', () => {
             ;
         }).timeout(5000);
 
-        it('should throw if external is ts supplied and no matching doc', async () => {
+        it('should throw if external ts supplied and no matching doc', async () => {
             const ns = 'exttsthrow';
             const ts = getTimestamp();
             oplog = new MongoOplog(conn.oplog, {ns: `*.${ns}`});
