@@ -165,7 +165,6 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
             if (!this._db) { await this.connect(); }
             this._stream = await getStream(this._db, this.ns, this.ts, this.collectionName);
             debug("stream started");
-            this.emit("tail-start");
             this._stream.on("end", () => {
                 debug("stream ended");
                 this.emit("end");
@@ -182,6 +181,7 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
                 this.emit("op", outDoc);
                 this.emit(opName, outDoc);
             });
+            this.emit("tail-start");
             return this._stream;
         } catch (err) {
             return onError(err);
