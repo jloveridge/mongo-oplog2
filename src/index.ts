@@ -3,7 +3,7 @@ import { Cursor, Db, MongoClient, MongoClientOptions, Timestamp} from "mongodb";
 import { EventEmitterStatic, EventEmitter, ListenerFn } from "eventemitter3";
 import { FilteredMongoOplog } from "./filter";
 import { getLastDoc, getStream } from "./stream";
-import { getOpName, getTimestamp, omit, OplogDoc, prettify } from "./util";
+import { getTimestamp, OplogDoc } from "./util";
 import * as util from "./util";
 export { getOpName, getTimestamp, OplogDoc, PrettyOplogDoc, prettify } from "./util";
 export { FilteredMongoOplog } from "./filter";
@@ -221,7 +221,7 @@ export interface Options {
     coll?: string;
     ns?: string;
     pretty?: boolean;
-    since?: number;
+    since?: number | string;
     mongo?: MongoClientOptions;
 }
 

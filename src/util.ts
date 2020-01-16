@@ -28,8 +28,10 @@ export function getOpName(op: string): string {
  * Converts a number into a MongoDB `Timestamp`
  * @param ts timestamp to convert
  */
-export function getTimestamp(ts?: number | Timestamp): Timestamp {
-    if (typeof ts === "number" || !ts) {
+export function getTimestamp(ts?: number | Timestamp | string): Timestamp {
+    if (typeof ts === 'string') {
+        return Timestamp.fromString(ts);
+    } else if (typeof ts === 'number' || !ts) {
         return new Timestamp(0, ts ? ts : (Date.now() / 1000));
     }
     return ts;
