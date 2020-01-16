@@ -196,7 +196,7 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
         this._client = await MongoClient.connect(this.uri, this.dbOpts);
         debug("Connected to oplog database.");
         this.emit("connect");
-        this._db = this._client.db();
+        this._db = this._client.db('local');
         return this._db;
     }
 
