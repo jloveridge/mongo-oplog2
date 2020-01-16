@@ -53,7 +53,9 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
             this.uri = uriOrDb || "mongodb://127.0.0.1/local";
             const dbOpts = opts.mongo || {};
             if (!('useUnifiedTopology' in dbOpts)) {
-                dbOpts.useUnifiedTopology = true;
+                // defaulting to true caused some connection issues
+                // for some users.
+                dbOpts.useUnifiedTopology = false;
             }
             this.dbOpts = dbOpts;
         } else {
