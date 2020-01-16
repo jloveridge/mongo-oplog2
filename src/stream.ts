@@ -20,6 +20,7 @@ export async function getStream(db?: Db, ns?: string, ts?: number | Timestamp, c
         cursor.addCursorFlag(flag, true);
     }
     cursor.setCursorOption('numberOfRetries', Number.MAX_VALUE as any);
+    cursor.batchSize(1000);
     return cursor.stream();
 }
 
