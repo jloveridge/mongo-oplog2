@@ -22,8 +22,10 @@ export interface MongoOplogInterface<isPretty extends boolean> extends EventEmit
     destroy(): Promise<this>;
 }
 
-type OplogType<O extends boolean> = O extends true ? OplogDoc : PrettyOplogDoc;
-type OptionsType<O extends boolean> = O extends true ? Options & {pretty: true} : Options;
+type PrettyOption = {pretty: true};
+type OplogType<O extends boolean> = O extends true ? PrettyOplogDoc : OplogDoc;
+type OptionsType<O extends boolean> = O extends true ? Options & PrettyOption : Options;
+type OptTypeIsPretty<T extends Options> = T extends PrettyOption ? true : false;
 
 /**
  * Allows tailing the MongoDB oplog.
@@ -245,8 +247,6 @@ export interface Options {
     filter?: OplogQuery;
     mongo?: MongoClientOptions;
 }
-
-type OptTypeIsPretty<T extends Options> = T extends {pretty: true} ? true : false;
 
 /**
  * Creates an instance of MongoOplog. This method exists for backwards compatibility
