@@ -1,32 +1,36 @@
 import { debuglog } from "util";
 import { Cursor, Db, MongoClient, MongoClientOptions, Timestamp} from "mongodb";
-import { EventEmitterStatic, EventEmitter, ListenerFn } from "eventemitter3";
+import EventEmitter from "eventemitter3";
 import { FilteredMongoOplog } from "./filter";
 import { getLastDoc, getStream } from "./stream";
-import { getTimestamp, OplogDoc } from "./util";
-import * as util from "./util";
+import { getOpName, getTimestamp, omit, OplogDoc, prettify, OplogQuery, PrettyOplogDoc } from "./util";
 export { getOpName, getTimestamp, OplogDoc, PrettyOplogDoc, prettify } from "./util";
 export { FilteredMongoOplog } from "./filter";
 
 const debug = debuglog("mongo-oplog2");
 const reErr = /cursor (killed or )?timed out/;
 
-export interface MongoOplog extends EventEmitterStatic {
+export interface MongoOplogInterface<isPretty extends boolean> extends EventEmitter<Events<isPretty>> {
     ignore: boolean;
     pretty: boolean;
-    filter(): FilteredMongoOplog;
-    filter(ns: string): FilteredMongoOplog;
+    filter(): FilteredMongoOplog<isPretty>;
+    filter(ns: string): FilteredMongoOplog<isPretty>;
     isCurrent(): Promise<boolean>;
     isCurrent(ts: Timestamp): Promise<boolean>;
-    stop(): Promise<MongoOplog>;
-    tail(): Promise<Cursor>;
-    destroy(): Promise<MongoOplog>;
+    stop(): Promise<this>;
+    tail(): Promise<Cursor | undefined>;
+    destroy(): Promise<this>;
 }
+
+type OplogType<O extends boolean> = O extends true ? OplogDoc : PrettyOplogDoc;
+type OptionsType<O extends boolean> = O extends true ? Options & {pretty: true} : Options;
 
 /**
  * Allows tailing the MongoDB oplog.
  */
-export class MongoOplog extends EventEmitter implements MongoOplog {
+class MongoOplogImpl<isPretty extends boolean = false>
+                extends EventEmitter<Events<isPretty>>
+                implements MongoOplogInterface<isPretty> {
     ignore: boolean = false;
     pretty: boolean = false;
     private _client: MongoClient;
@@ -48,7 +52,7 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
      *             passed along to the `mongodb` driver when creating a
      *             database connection.
      */
-    constructor(uriOrDb?: string | Db, opts: Options = {}) {
+    constructor(uriOrDb?: string | Db, opts: OptionsType<isPretty> = {} as any) {
         super();
         if (!uriOrDb || typeof uriOrDb === "string") {
             this.uri = uriOrDb || "mongodb://127.0.0.1/local";
@@ -96,13 +100,13 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
      * name space.
      * @param ns namespace for the filter.
      */
-    filter(ns: string = ""): FilteredMongoOplog { return new FilteredMongoOplog(this, ns); }
+    filter(ns: string = ""): FilteredMongoOplog<isPretty> { return new FilteredMongoOplog(this, ns); }
 
     /**
      * Stop tailing the oplog, disconnect from the database, and emit the
      * "destroy" event.
      */
-    async destroy(): Promise<MongoOplog> {
+    async destroy(): Promise<this> {
         await this.stop();
         await this.disconnect();
         this.removeAllListeners();
@@ -137,7 +141,7 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
      * Stop tailing the oplog and destroy the underlying cursor. Tailing
      * can be resumed by calling the `tail` function.
      */
-    async stop(): Promise<MongoOplog> {
+    async stop(): Promise<this> {
         if (this._stream) {
             this._stream.destroy();
             delete this._stream;
@@ -184,12 +188,12 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
             this._stream.on("data", (doc: OplogDoc) => {
                 if (this.ignore) { return; }
                 this._ts = doc.ts;
-                const opName = util.getOpName(doc.op);
-                const outDoc = this.pretty ? util.prettify(doc) : doc;
+                const opName = getOpName(doc.op);
+                const outDoc = this.pretty ? prettify(doc) : doc;
                 debug("incoming data: %j", doc);
                 debug("outgoing data: %j", outDoc);
-                this.emit("op", outDoc);
-                this.emit(opName, outDoc);
+                this.emit("op", outDoc as any);
+                this.emit(opName, outDoc as any);
             });
             this.emit("tail-start");
             return this._stream;
@@ -226,38 +230,53 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
         this.emit("disconnect");
     }
 }
+export const MongoOplog: MongoOplogConstructor = MongoOplogImpl as any;
+export type MongoOplog<isPretty extends boolean> = MongoOplogImpl<isPretty>;
+
+export interface MongoOplogConstructor<isPretty extends boolean = false> {
+    new<T extends Options>(uriOrDb?: string | Db, opts?: T): MongoOplog<OptTypeIsPretty<T>>;
+}
 
 export interface Options {
     coll?: string;
     ns?: string;
     pretty?: boolean;
     since?: number | string;
+    filter?: OplogQuery;
     mongo?: MongoClientOptions;
 }
+
+type OptTypeIsPretty<T extends Options> = T extends {pretty: true} ? true : false;
 
 /**
  * Creates an instance of MongoOplog. This method exists for backwards compatibility
  * with the `mongo-oplog` package. Normal expected behavior would be to call new
  * directly.
  */
-export function createInstance(): MongoOplog;
-export function createInstance(uri: string): MongoOplog;
-export function createInstance(uri: string, opts: Options): MongoOplog;
-export function createInstance(db: Db): MongoOplog;
-export function createInstance(db: Db, opts: Options): MongoOplog;
-export function createInstance(uriOrDb?: string | Db, opts: Options = {}): MongoOplog {
+export function createInstance(): MongoOplog<false>;
+export function createInstance(uri: string): MongoOplog<false>;
+export function createInstance<OptType extends Options>(uri: string, opts: OptType): MongoOplog<OptTypeIsPretty<OptType>>;
+export function createInstance(db: Db): MongoOplog<false>;
+export function createInstance<OptType extends Options>(db: Db, opts: OptType): MongoOplog<OptTypeIsPretty<OptType>>;
+export function createInstance(uriOrDb?: string | Db, opts: Options = {}): MongoOplog<boolean> {
     return new MongoOplog(uriOrDb, opts);
 }
 
-export const OplogEvents = Object.freeze(["delete", "insert", "op", "update"]);
-export type OplogEvents = "delete" | "insert" | "op" | "update";
-export const MongoOplogStatus = Object.freeze(["connect", "destroy", "end", "error"]);
-export type MongoOplogStatus = "connect" | "destroy" | "end" | "error";
-export const Events = Object.freeze([
-    "connect", "destroy", "end", "error",
-    "delete", "insert", "op", "update",
+export const OplogEvents = Object.freeze(<const>["delete", "insert", "op", "update", "noop"]);
+export type OplogEvents<isPretty extends boolean = false> = {
+    delete: [void], insert: [OplogType<isPretty>], update: [OplogType<isPretty>], op: [OplogType<isPretty>],
+    noop: [void]
+};
+export const MongoOplogStatus = Object.freeze(<const>[
+    "connect", "disconnect", "destroy", "end", "error", "tail-start", "tail-end"
 ]);
+export type MongoOplogStatus = {
+    connect: [void], disconnect: [void], destroy: [void],
+    error: [Error], end: [void], "tail-start": [void], "tail-end": [void],
+};
+export const Events = Object.freeze([...OplogEvents, ...MongoOplogStatus]);
 
-export type Events = MongoOplogStatus | OplogEvents;
+// This defines the types of the parameters for each event which is fired
+export type Events<isPretty extends boolean> = OplogEvents<isPretty> & MongoOplogStatus;
 
 export default createInstance;
