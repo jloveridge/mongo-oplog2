@@ -13,8 +13,7 @@
         "preserveConstEnums": true,
         "removeComments": false,
         "strictNullChecks": true,
-        "target": "es2018",
-        "esModuleInterop": true,
+        "target": "es2018"
     },
     "include": [
         "src/**/*"

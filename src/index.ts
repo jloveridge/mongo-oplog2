@@ -1,6 +1,6 @@
 import { debuglog } from "util";
 import { Cursor, Db, MongoClient, MongoClientOptions, Timestamp} from "mongodb";
-import EventEmitter from "eventemitter3";
+import * as EventEmitter from "eventemitter3";
 import { FilteredMongoOplog } from "./filter";
 import { getLastDoc, getStream } from "./stream";
 import { getOpName, getTimestamp, omit, OplogDoc, prettify, OplogQuery, PrettyOplogDoc } from "./util";
@@ -23,7 +23,7 @@ export interface MongoOplogInterface<isPretty extends boolean> extends EventEmit
 }
 
 type PrettyOption = {pretty: true};
-type OplogType<O extends boolean> = O extends true ? PrettyOplogDoc : OplogDoc;
+export type OplogType<O extends boolean> = O extends true ? PrettyOplogDoc : OplogDoc;
 type OptionsType<O extends boolean> = O extends true ? Options & PrettyOption : Options;
 type OptTypeIsPretty<T extends Options> = T extends PrettyOption ? true : false;
 

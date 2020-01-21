@@ -1,6 +1,6 @@
 import { debuglog } from "util";
-import EventEmitter, {ListenerFn } from "eventemitter3";
-import { MongoOplog, OplogEvents } from "./";
+import * as EventEmitter from "eventemitter3";
+import { MongoOplog, OplogEvents, OplogType } from "./";
 import { getOpName, OplogDoc, prettify, PrettyOplogDoc, regex } from './util';
 
 const debug = debuglog("mongo-oplog2:filter");
@@ -23,7 +23,7 @@ export class FilteredMongoOplog<isPretty extends boolean>
                     implements FilteredMongoOplog<isPretty> {
     ignore: boolean = false;
     oplog: MongoOplog<isPretty>;
-    private onOp: ListenerFn;
+    private onOp: EventEmitter.ListenerFn<[OplogType<isPretty>]>;
 
     constructor(oplog: MongoOplog<isPretty>, ns: string = "*") {
         super();
@@ -34,7 +34,7 @@ export class FilteredMongoOplog<isPretty extends boolean>
             const docNs = doc.namespace || doc.ns;
             if (this.ignore || !re.test(docNs)) { return; }
             debug("incoming data %j", doc);
-            const opName = doc.operation || getOpName(doc.op);
+            const opName: ReturnType<typeof getOpName> = doc.operation || getOpName(doc.op);
             this.emit("op", doc);
             this.emit(opName, doc);
         };
