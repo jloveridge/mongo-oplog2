@@ -264,7 +264,7 @@ export function createInstance(uriOrDb?: string | Db, opts: Options = {}): Mongo
 
 export const OplogEvents = Object.freeze(<const>["delete", "insert", "op", "update", "noop"]);
 export type OplogEvents<isPretty extends boolean = false> = {
-    delete: [void], insert: [OplogType<isPretty>], update: [OplogType<isPretty>], op: [OplogType<isPretty>],
+    delete: [OplogType<isPretty>], insert: [OplogType<isPretty>], update: [OplogType<isPretty>], op: [OplogType<isPretty>],
     noop: [void]
 };
 export const MongoOplogStatus = Object.freeze(<const>[
