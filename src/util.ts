@@ -1,9 +1,9 @@
 import { debuglog } from "util";
-import { Timestamp } from "mongodb";
+import { FilterQuery, Timestamp } from "mongodb";
 
 debuglog("mongo-oplog2:utils");
 
-export const opMap = Object.freeze({
+export const opMap = Object.freeze(<const>{
     i: "insert", insert: "i",
     d: "delete", delete: "d",
     n: "noop", noop: "n",
@@ -20,7 +20,7 @@ export const opMap = Object.freeze({
  *   u: update
  * @param op MongoDB operation code
  */
-export function getOpName(op: string): string {
+export function getOpName(op: string): 'insert' | 'delete' | 'noop' | 'update' {
     return (<any>opMap)[op] || op;
 }
 
@@ -89,6 +89,7 @@ export function timeout(ms: number) {
     );
 }
 
+
 /**
  * Defines the structure of a MongoDB oplog
  * document.
@@ -101,6 +102,7 @@ export interface OplogDoc {
     o: any;
     o2: any;
 }
+export type OplogQuery = FilterQuery<OplogDoc>;
 
 /**
  * Defines the structure of a "pretty" oplog document

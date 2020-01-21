@@ -39,6 +39,7 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
     private _stream?: Cursor;
     private _ts: Timestamp;
     private tailing: boolean;
+    private _oplogFilter?: OplogQuery;
 
     /**
      * @param uriOrDb a connection string or existing database connection
@@ -67,6 +68,7 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
         this.ns = opts.ns || "";
         this.collectionName = opts.coll || "";
         this._ts = getTimestamp(opts.since || 0);
+        this._oplogFilter = opts.filter || void 0;
     }
 
     /**
@@ -165,7 +167,13 @@ export class MongoOplog extends EventEmitter implements MongoOplog {
             }
             this.tailing = true;
             if (!this._db) { await this.connect(); }
-            this._stream = await getStream(this._db, this.ns, this.ts, this.collectionName);
+            this._stream = await getStream({
+                db: this._db,
+                ns: this.ns,
+                ts: this.ts,
+                coll: this.collectionName,
+                filter: this._oplogFilter,
+            });
             debug("stream started");
             this._stream.on("end", () => {
                 debug("stream ended");

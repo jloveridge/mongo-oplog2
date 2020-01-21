@@ -1,5 +1,13 @@
 import { Cursor, Db, Timestamp } from "mongodb";
-import { getTimestamp, regex, OplogDoc } from "./util";
+import { getTimestamp, regex, OplogDoc, OplogQuery } from "./util";
+
+interface GetStreamOptions {
+    db?: Db;
+    ns?: string;
+    ts?: number | Timestamp;
+    coll?: string;
+    filter?: OplogQuery;
+}
 
 /**
  * Obtain a cursor stream for the oplog.
@@ -8,13 +16,14 @@ import { getTimestamp, regex, OplogDoc } from "./util";
  * @param ts timestamp to start from. No specified timestamp is treated as from now.
  * @param coll collection for the oplog. (default: "oplog.rs")
  */
-export async function getStream(db?: Db, ns?: string, ts?: number | Timestamp, coll?: string): Promise<Cursor> {
+export async function getStream({ db, ns, ts, coll, filter }: GetStreamOptions = {}): Promise<Cursor> {
     if (!db) { throw new Error("Mongo db is missing."); }
     coll = coll || "oplog.rs";
     const collection = db.collection(coll);
     const timestamp = getTimestamp(ts);
-    const query: any = {ts: {$gt: timestamp}};
-    if (ns) { query.ns = {$regex: regex(ns)}; }
+    const query: OplogQuery = {ts: {$gt: timestamp}};
+    if (filter) { Object.assign(query, filter); }
+    else if (ns) { query.ns = {$regex: regex(ns)}; }
     const cursor = collection.find(query);
     for (const flag of ['awaitData', 'noCursorTimeout', 'oplogReplay', 'tailable']) {
         cursor.addCursorFlag(flag, true);
