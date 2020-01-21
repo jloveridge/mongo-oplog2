@@ -1,13 +1,15 @@
 import { debuglog } from "util";
-import { EventEmitter, ListenerFn } from "eventemitter3";
+import EventEmitter, {ListenerFn } from "eventemitter3";
 import { MongoOplog, OplogEvents } from "./";
 import { getOpName, OplogDoc, prettify, PrettyOplogDoc, regex } from './util';
 
 const debug = debuglog("mongo-oplog2:filter");
 
-export interface FilteredMongoOplog {
+type FilteredOplogEvents<isPretty extends boolean> = OplogEvents<isPretty> & {destroy: [void]};
+
+export interface FilteredMongoOplog<isPretty extends boolean> extends EventEmitter<FilteredOplogEvents<isPretty>> {
     ignore: boolean;
-    oplog: MongoOplog;
+    oplog: MongoOplog<isPretty>;
     destroy(): void;
 }
 
@@ -16,12 +18,14 @@ export interface FilteredMongoOplog {
  * main `oplog` instance tailing an entire database but then create a filter for
  * a specifc collection to create triggers independently.
  */
-export class FilteredMongoOplog extends EventEmitter implements FilteredMongoOplog {
+export class FilteredMongoOplog<isPretty extends boolean>
+                    extends EventEmitter<FilteredOplogEvents<isPretty>>
+                    implements FilteredMongoOplog<isPretty> {
     ignore: boolean = false;
-    oplog: MongoOplog;
+    oplog: MongoOplog<isPretty>;
     private onOp: ListenerFn;
 
-    constructor(oplog: MongoOplog, ns: string = "*") {
+    constructor(oplog: MongoOplog<isPretty>, ns: string = "*") {
         super();
         debug("initializing filter with re %s", ns);
         const re = regex(ns);
