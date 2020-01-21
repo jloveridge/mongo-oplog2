@@ -13,7 +13,8 @@ const conn = {
     oplog: 'mongodb://127.0.0.1:27017/local',
     error: 'mongodb://127.0.0.1:8888/error'
 };
-let oplog: MongoOplog = null as any;
+let oplog: MongoOplog<false> = null as any;
+let pOplog: MongoOplog<true> = null as any;
 
 describe('mongo-oplog', () => {
     let client: MongoClient;
@@ -23,6 +24,10 @@ describe('mongo-oplog', () => {
         db = client.db();
     });
     afterEach(async () => {
+        if (pOplog) {
+            pOplog.destroy();
+            pOplog = null as any;
+        }
         if (oplog) {
             oplog.destroy();
             oplog = null as any;
@@ -105,7 +110,7 @@ describe('mongo-oplog', () => {
                 return coll.deleteOne({_id: {$exists: true}, n: 'PM', c: 4 });
             })
             .catch(done);
-        oplog.on("delete", (doc: OplogDoc) => {
+        oplog.on("delete", doc => {
             expect(doc.op).to.eq('d');
             expect(doc.o._id.toString()).to.eq(id.toString());
             done();
@@ -129,6 +134,20 @@ describe('mongo-oplog', () => {
         oplog.tail().catch(done);
     }).timeout(40000);
 
+
+    it('should honor a mongodb filter in the constructor', (done) => {
+        let f1 = db.collection('f1');
+        let f2 = db.collection('f2');
+        pOplog = new MongoOplog(conn.oplog, { filter: {ns: /f1$/}, pretty: true });
+        pOplog.on('op', doc => {
+            expect(doc.data.n).to.eq('L2');
+            done();
+        });
+        pOplog.tail()
+          .then(() => f1.insertOne({ n: 'L2' }))
+          .then(() => f2.insertOne({ n: 'L2' }))
+          .catch(done);
+    });
 
     it('should filter by namespace in constructor', (done) => {
         let f1 = db.collection('f1');
@@ -329,7 +348,7 @@ describe('mongo-oplog', () => {
 
           let filter = oplog.filter('*.e1');
 
-          filter.on('op', (doc: OplogDoc) => {
+          filter.on('op', doc => {
               expect(doc.o.n).to.eq('L1');
               done();
           });
