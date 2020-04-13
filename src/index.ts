@@ -1,6 +1,7 @@
 import { debuglog } from "util";
 import { Cursor, Db, MongoClient, MongoClientOptions, Timestamp} from "mongodb";
-import * as EventEmitter from "eventemitter3";
+
+import EventEmitter from "./eventemitter";
 import { FilteredMongoOplog } from "./filter";
 import { getLastDoc, getStream } from "./stream";
 import { getOpName, getTimestamp, omit, OplogDoc, prettify, OplogQuery, PrettyOplogDoc } from "./util";

@@ -1,5 +1,5 @@
 import { debuglog } from "util";
-import * as EventEmitter from "eventemitter3";
+import EventEmitter from "./eventemitter";
 import { MongoOplog, OplogEvents, OplogType } from "./";
 import { getOpName, OplogDoc, prettify, PrettyOplogDoc, regex } from './util';
 
